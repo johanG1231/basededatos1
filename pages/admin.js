@@ -4,96 +4,129 @@ import { supabase } from '../lib/supabaseClient'
 
 export default function AdminPage() {
   const [articulos, setArticulos] = useState([])
-  const [titulo, setTitulo] = useState('')
-  const [descripcion, setDescripcion] = useState('')
-  const [link, setLink] = useState('')
+  const [form, setForm] = useState({ id: null, titulo: '', descripcion: '', link: '' })
   const router = useRouter()
 
   useEffect(() => {
     const checkUser = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) router.push('/')
+      else fetchArticulos()
     }
     checkUser()
-    fetchArticulos()
   }, [])
 
   const fetchArticulos = async () => {
-    const { data, error } = await supabase.from('articulos').select('*')
+    const { data, error } = await supabase.from('articulos').select('*').order('id', { ascending: true })
     if (error) console.error(error)
     else setArticulos(data)
   }
 
-  const handleAdd = async () => {
-    if (!titulo.trim() || !descripcion.trim() || !link.trim()) {
-      alert('Por favor completa todos los campos');
-      return;
+  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value })
+
+  const handleSubmit = async e => {
+    e.preventDefault()
+    if (!form.titulo || !form.descripcion) {
+      alert('Por favor completa título y descripción')
+      return
     }
 
-    const { data: existing, error: errorCheck } = await supabase
-      .from('articulos')
-      .select('id')
-      .eq('titulo', titulo)
-      .limit(1);
-
-    if (errorCheck) {
-      alert('Error al verificar artículo existente');
-      return;
-    }
-
-    if (existing.length > 0) {
-      alert('Ya existe un artículo con ese título');
-      return;
-    }
-
-    const { error } = await supabase
-      .from('articulos')
-      .insert({ titulo, descripcion, link });
-
-    if (!error) {
-      setTitulo('');
-      setDescripcion('');
-      setLink('');
-      fetchArticulos();
+    if (form.id === null) {
+      // Insertar nuevo artículo
+      const { error } = await supabase.from('articulos').insert({ titulo: form.titulo, descripcion: form.descripcion, link: form.link })
+      if (error) alert('Error al agregar artículo: ' + error.message)
+      else {
+        setForm({ id: null, titulo: '', descripcion: '', link: '' })
+        fetchArticulos()
+      }
     } else {
-      alert('Error al agregar artículo');
+      // Actualizar artículo existente
+      const { error } = await supabase.from('articulos').update({
+        titulo: form.titulo,
+        descripcion: form.descripcion,
+        link: form.link
+      }).eq('id', form.id)
+
+      if (error) alert('Error al actualizar artículo: ' + error.message)
+      else {
+        setForm({ id: null, titulo: '', descripcion: '', link: '' })
+        fetchArticulos()
+      }
     }
   }
 
-
-  const handleDelete = async (id) => {
-    await supabase.from('articulos').delete().eq('id', id)
-    fetchArticulos()
+  const handleEditar = art => {
+    setForm({ id: art.id, titulo: art.titulo, descripcion: art.descripcion, link: art.link || '' })
   }
 
-  const handleUpdate = async (id) => {
-    const nuevoTitulo = prompt('Nuevo título:')
-    if (nuevoTitulo) {
-      await supabase.from('articulos').update({ titulo: nuevoTitulo }).eq('id', id)
-      fetchArticulos()
+  const handleBorrar = async id => {
+    if (confirm('¿Seguro que quieres borrar este artículo?')) {
+      const { error } = await supabase.from('articulos').delete().eq('id', id)
+      if (error) alert('Error al borrar: ' + error.message)
+      else fetchArticulos()
     }
   }
 
   return (
-    <div className="p-4 max-w-2xl mx-auto">
+    <div className="max-w-3xl mx-auto p-4">
       <h1 className="text-2xl font-bold mb-4">Administrar Artículos</h1>
-      <div className="mb-4">
-        <input className="border p-2 mr-2" placeholder="Título" value={titulo} onChange={e => setTitulo(e.target.value)} />
-        <input className="border p-2 mr-2" placeholder="Descripción" value={descripcion} onChange={e => setDescripcion(e.target.value)} />
-        <input className="border p-2 mr-2" placeholder="Link" value={link} onChange={e => setLink(e.target.value)} />
-        <button onClick={handleAdd} className="bg-green-500 text-white p-2">Agregar</button>
-      </div>
-      {articulos.map(art => (
-        <div key={art.id} className="border p-2 mb-2">
-          <h2 className="font-bold">{art.titulo}</h2>
-          <p>{art.descripcion}</p>
-          <a href={art.link} className="text-blue-500" target="_blank">Ver</a>
-          <div className="mt-2">
-            <button onClick={() => handleUpdate(art.id)} className="bg-yellow-400 p-1 mr-2">Modificar</button>
-            <button onClick={() => handleDelete(art.id)} className="bg-red-500 text-white p-1">Eliminar</button>
+
+      <form onSubmit={handleSubmit} className="mb-6 space-y-3">
+        <input
+          name="titulo"
+          value={form.titulo}
+          onChange={handleChange}
+          placeholder="Título"
+          className="w-full p-2 border rounded"
+          required
+        />
+        <textarea
+          name="descripcion"
+          value={form.descripcion}
+          onChange={handleChange}
+          placeholder="Descripción"
+          className="w-full p-2 border rounded"
+          required
+        />
+        <input
+          name="link"
+          value={form.link}
+          onChange={handleChange}
+          placeholder="Link (opcional)"
+          className="w-full p-2 border rounded"
+        />
+        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+          {form.id === null ? 'Agregar' : 'Actualizar'}
+        </button>
+        {form.id !== null && (
+          <button
+            type="button"
+            onClick={() => setForm({ id: null, titulo: '', descripcion: '', link: '' })}
+            className="ml-4 px-4 py-2 border rounded"
+          >
+            Cancelar
+          </button>
+        )}
+      </form>
+
+      <div>
+        {articulos.length === 0 && <p>No hay artículos aún.</p>}
+        {articulos.map(art => (
+          <div key={art.id} className="border p-3 mb-3 rounded shadow">
+            <h3 className="font-semibold">{art.titulo}</h3>
+            <p>{art.descripcion}</p>
+            {art.link && (
+              <a href={art.link} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
+                Ver enlace
+              </a>
+            )}
+            <div className="mt-2 space-x-2">
+              <button onClick={() => handleEditar(art)} className="bg-yellow-400 px-3 py-1 rounded">Editar</button>
+              <button onClick={() => handleBorrar(art.id)} className="bg-red-600 text-white px-3 py-1 rounded">Borrar</button>
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   )
 }
