@@ -25,7 +25,11 @@ export default function AdminPage() {
   }
 
   const handleAdd = async () => {
-    // Primero consultamos si ya existe un artículo con ese título
+    if (!titulo.trim() || !descripcion.trim() || !link.trim()) {
+      alert('Por favor completa todos los campos');
+      return;
+    }
+
     const { data: existing, error: errorCheck } = await supabase
       .from('articulos')
       .select('id')
@@ -42,7 +46,6 @@ export default function AdminPage() {
       return;
     }
 
-    // Si no existe, insertar
     const { error } = await supabase
       .from('articulos')
       .insert({ titulo, descripcion, link });
