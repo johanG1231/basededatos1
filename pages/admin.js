@@ -25,8 +25,28 @@ export default function AdminPage() {
   }
 
   const handleAdd = async () => {
+    const { data: existing, error: fetchError } = await supabase
+      .from('articulos')
+      .select('*')
+      .or(`titulo.eq.${titulo},link.eq.${link}`)
+      .limit(1)
+      .single()
+
+    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = No rows found, no es error
+      alert('Error al verificar artículo existente')
+      return
+    }
+
+    if (existing) {
+      alert('Ya existe un artículo con ese título o link')
+      return
+    }
+
+    // Si no existe, insertar
     const { error } = await supabase.from('articulos').insert({ titulo, descripcion, link })
-    if (!error) {
+    if (error) {
+      alert('Error al agregar artículo')
+    } else {
       setTitulo(''); setDescripcion(''); setLink('')
       fetchArticulos()
     }
