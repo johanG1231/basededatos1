@@ -25,32 +25,38 @@ export default function AdminPage() {
   }
 
   const handleAdd = async () => {
-    const { data: existing, error: fetchError } = await supabase
+    // Primero consultamos si ya existe un artículo con ese título
+    const { data: existing, error: errorCheck } = await supabase
       .from('articulos')
-      .select('*')
-      .or(`titulo.eq.${titulo},link.eq.${link}`)
-      .limit(1)
-      .single()
+      .select('id')
+      .eq('titulo', titulo)
+      .limit(1);
 
-    if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = No rows found, no es error
-      alert('Error al verificar artículo existente')
-      return
+    if (errorCheck) {
+      alert('Error al verificar artículo existente');
+      return;
     }
 
-    if (existing) {
-      alert('Ya existe un artículo con ese título o link')
-      return
+    if (existing.length > 0) {
+      alert('Ya existe un artículo con ese título');
+      return;
     }
 
     // Si no existe, insertar
-    const { error } = await supabase.from('articulos').insert({ titulo, descripcion, link })
-    if (error) {
-      alert('Error al agregar artículo')
+    const { error } = await supabase
+      .from('articulos')
+      .insert({ titulo, descripcion, link });
+
+    if (!error) {
+      setTitulo('');
+      setDescripcion('');
+      setLink('');
+      fetchArticulos();
     } else {
-      setTitulo(''); setDescripcion(''); setLink('')
-      fetchArticulos()
+      alert('Error al agregar artículo');
     }
   }
+
 
   const handleDelete = async (id) => {
     await supabase.from('articulos').delete().eq('id', id)
